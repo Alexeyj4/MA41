@@ -23,14 +23,19 @@
 /* USER CODE BEGIN Includes */
 #include "OLED.h"
 #include "AD9833.h"
-
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
 /* USER CODE BEGIN PTD */
-const int16_t enc_coef=100;
-const int16_t init_freq=1500;
-int16_t freq;
+const int16_t freq_step=100; //step of freq
+const int16_t init_freq=1500;//strtup frequency
+const int8_t enc_step=-4;//+4 or -4//sign is direction of encoder
+int16_t freq;//current frequency
+int8_t mode_iter=3;//синус
+const char*mode0="DSRK"; //see defines in ad9833.h //ВЫКЛ.
+const char*mode1="NHTEUJKMYSQ"; //see defines in ad9833.h //ТРЕУГОЛЬНЫЙ
+const char*mode2="VTFYLH"; //see defines in ad9833.h //МЕАНДР
+const char*mode3="CBYEC"; //see defines in ad9833.h //СИНУС
 
 /* USER CODE END PTD */
 
@@ -74,27 +79,51 @@ void oled_init(){
 	HAL_Delay(100);
 	OLED_Init(&hi2c1);
 	OLED_Clear(0);
-	FontSet(Segoe_UI_Rus_12);
-	OLED_DrawStr("Uw", 1, 32, 1);
 	OLED_UpdateScreen();
-	FontSet(BigNumbers);
 }
 
 void ad_init(){
 	ad9833_init();
 	ad9833_set_frequency(0, init_freq);
 	ad9833_set_freq_out(0);
-	//ad9833_set_mode(AD_SINE);// Для остановки генерации сигнала выбрать режим OFF://ad9833_set_mode(AD_OFF);
-	ad9833_set_mode(AD_SQUARE);// Для остановки генерации сигнала выбрать режим OFF://ad9833_set_mode(AD_OFF);
+}
+
+void ad_set_mode(uint8_t m){
+	ad9833_set_mode(m);
+	OLED_Clear(0);
+	FontSet(Segoe_UI_Rus_12);
+	OLED_DrawStr("Uw", 1, 32, 1);
+	switch(m){
+	case 0:
+		OLED_DrawStr(mode0, 1, 50, 1);
+		break;
+	case 1:
+		OLED_DrawStr(mode1, 1, 50, 1);
+		break;
+	case 2:
+		OLED_DrawStr(mode2, 1, 50, 1);
+		break;
+	case 3:
+		OLED_DrawStr(mode3, 1, 50, 1);
+		break;
+	}
+	FontSet(BigNumbers);
+	OLED_UpdateScreen();
 }
 
 void loop(){
-	freq=init_freq-(1*(int16_t)__HAL_TIM_GET_COUNTER(&htim2)/4)*enc_coef;
+	freq=init_freq+(((int16_t)__HAL_TIM_GET_COUNTER(&htim2))/enc_step)*freq_step;
+	if(freq<0){
+		__HAL_TIM_SET_COUNTER(&htim2, -init_freq/freq_step*enc_step);
+		freq=0;
+	}
 	ad9833_set_frequency(0, freq);
-	OLED_Clear(0);
+	OLED_DrawRectangleFill(1,1,128,31,0);
 	OLED_DrawNum(freq, 1, 1, 1);
 	if(HAL_GPIO_ReadPin(GPIOC, GPIO_PIN_1)==0){
-		OLED_DrawNum(888, 50, 1, 1);
+		mode_iter++;
+		if(mode_iter>3)mode_iter=0;
+		ad_set_mode(mode_iter);
 	}
 	OLED_UpdateOnePage(0);
 	OLED_UpdateOnePage(1);
@@ -139,6 +168,7 @@ int main(void)
   HAL_TIM_Encoder_Start(&htim2, TIM_CHANNEL_ALL);
   oled_init();
   ad_init();
+  ad_set_mode(mode_iter);
 
   /* USER CODE END 2 */
 
