@@ -3,7 +3,8 @@
 #define SWAP(A, B) { A ^= B; B = A ^ B; A ^= B; }
 #define ABS(A) (((A) < 0) ? ((-1) * (A)) : (A))
 
-static uint8_t oled_start_column = 2;		// Display shift
+static uint8_t oled_start_column = 0;		// Display shift
+//static uint8_t oled_start_column = 2;		// Display shift //debug
 static uint8_t oled_buffer[1024];			// Display buffer
 static I2C_HandleTypeDef* hi2c;				// Pointer I2C structure
 
