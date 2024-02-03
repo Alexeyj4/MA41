@@ -57,6 +57,8 @@ void Error_Handler(void);
 /* USER CODE END EFP */
 
 /* Private defines -----------------------------------------------------------*/
+#define VMEAS_Pin GPIO_PIN_0
+#define VMEAS_GPIO_Port GPIOC
 #define ENC_BTN_Pin GPIO_PIN_1
 #define ENC_BTN_GPIO_Port GPIOC
 #define HGM__FNC_Pin GPIO_PIN_2

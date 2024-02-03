@@ -31,17 +31,17 @@ const int16_t freq_step=100; //step of freq
 const int16_t init_freq=1500;//strtup frequency
 const int8_t enc_step=-4;//+4 or -4//sign is direction of encoder
 int16_t freq;//current frequency
-int8_t mode_iter=3;//синус
+int8_t mode_iter=3;//синус по-умолчанию
+uint16_t vmeas;//измеренное напряжение (уровень)
 const char*mode0="DSRK"; //see defines in ad9833.h //ВЫКЛ.
-const char*mode1="NHTEUJKMYSQ"; //see defines in ad9833.h //ТРЕУГОЛЬНЫЙ
+const char*mode1="NHTEU"; //see defines in ad9833.h //ТРЕУГОЛЬНЫЙ
 const char*mode2="VTFYLH"; //see defines in ad9833.h //МЕАНДР
-const char*mode3="CBYEC"; //see defines in ad9833.h //СИНУС
+const char*mode3="CBYEC"; //see defines in ad9833.h //С�?НУС
 
 /* USER CODE END PTD */
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
-
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -50,6 +50,8 @@ const char*mode3="CBYEC"; //see defines in ad9833.h //СИНУС
 /* USER CODE END PM */
 
 /* Private variables ---------------------------------------------------------*/
+ADC_HandleTypeDef hadc1;
+
 I2C_HandleTypeDef hi2c1;
 I2C_HandleTypeDef hi2c2;
 
@@ -68,6 +70,7 @@ static void MX_I2C1_Init(void);
 static void MX_I2C2_Init(void);
 static void MX_TIM2_Init(void);
 static void MX_SPI2_Init(void);
+static void MX_ADC1_Init(void);
 /* USER CODE BEGIN PFP */
 
 /* USER CODE END PFP */
@@ -95,23 +98,23 @@ void ad_set_mode(uint8_t m){
 	OLED_DrawStr("Uw", 1, 32, 1);
 	switch(m){
 	case 0:
-		OLED_DrawStr(mode0, 1, 50, 1);
+		OLED_DrawStr(mode0, 30, 32, 1);
 		break;
 	case 1:
-		OLED_DrawStr(mode1, 1, 50, 1);
+		OLED_DrawStr(mode1, 30, 32, 1);
 		break;
 	case 2:
-		OLED_DrawStr(mode2, 1, 50, 1);
+		OLED_DrawStr(mode2, 30, 32, 1);
 		break;
 	case 3:
-		OLED_DrawStr(mode3, 1, 50, 1);
+		OLED_DrawStr(mode3, 30, 32, 1);
 		break;
 	}
-	FontSet(BigNumbers);
 	OLED_UpdateScreen();
 }
 
 void loop(){
+	//start freq set and rendering
 	freq=init_freq+(((int16_t)__HAL_TIM_GET_COUNTER(&htim2))/enc_step)*freq_step;
 	if(freq<0){
 		__HAL_TIM_SET_COUNTER(&htim2, -init_freq/freq_step*enc_step);
@@ -119,6 +122,7 @@ void loop(){
 	}
 	ad9833_set_frequency(0, freq);
 	OLED_DrawRectangleFill(1,1,128,31,0);
+	FontSet(BigNumbers);
 	OLED_DrawNum(freq, 1, 1, 1);
 	if(HAL_GPIO_ReadPin(GPIOC, GPIO_PIN_1)==0){
 		mode_iter++;
@@ -128,8 +132,18 @@ void loop(){
 	OLED_UpdateOnePage(0);
 	OLED_UpdateOnePage(1);
 	OLED_UpdateOnePage(2);
+	//end freq set and rendering
+	//start output level measuring and rendering
+	HAL_ADC_Start(&hadc1);
+	vmeas=HAL_ADC_GetValue(&hadc1);
+	OLED_DrawRectangleFill(1,50,128,64,0);
+	FontSet(Segoe_UI_Rus_12);
+	OLED_DrawNum(vmeas, 1, 50, 1);
+	OLED_DrawStr("vD", 45, 50, 1);
+	OLED_UpdateOnePage(6);
+	OLED_UpdateOnePage(7);
+	//end output level measuring and rendering
 }
-
 /* USER CODE END 0 */
 
 /**
@@ -164,12 +178,15 @@ int main(void)
   MX_I2C2_Init();
   MX_TIM2_Init();
   MX_SPI2_Init();
+  MX_ADC1_Init();
   /* USER CODE BEGIN 2 */
   HAL_TIM_Encoder_Start(&htim2, TIM_CHANNEL_ALL);
   oled_init();
   ad_init();
   ad_set_mode(mode_iter);
-
+  //HAL_ADCEx_Calibration_Start(&hadc1);//debug
+  HAL_ADC_Start(&hadc1);
+  HAL_Delay(100);
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -177,9 +194,7 @@ int main(void)
   while (1)
   {
 	  loop();
-/*	  HAL_GPIO_TogglePin(GPIOC, GPIO_PIN_9); // инверсия вывода PC13
-	  HAL_Delay(200);*/
-
+	  HAL_GPIO_TogglePin(GPIOC, GPIO_PIN_9); // инверсия вывода PC13
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
@@ -227,6 +242,73 @@ void SystemClock_Config(void)
   {
     Error_Handler();
   }
+}
+
+/**
+  * @brief ADC1 Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_ADC1_Init(void)
+{
+
+  /* USER CODE BEGIN ADC1_Init 0 */
+
+  /* USER CODE END ADC1_Init 0 */
+
+  ADC_MultiModeTypeDef multimode = {0};
+  ADC_ChannelConfTypeDef sConfig = {0};
+
+  /* USER CODE BEGIN ADC1_Init 1 */
+
+  /* USER CODE END ADC1_Init 1 */
+
+  /** Common config
+  */
+  hadc1.Instance = ADC1;
+  hadc1.Init.ClockPrescaler = ADC_CLOCK_ASYNC_DIV1;
+  hadc1.Init.Resolution = ADC_RESOLUTION_12B;
+  hadc1.Init.DataAlign = ADC_DATAALIGN_RIGHT;
+  hadc1.Init.ScanConvMode = ADC_SCAN_DISABLE;
+  hadc1.Init.EOCSelection = ADC_EOC_SINGLE_CONV;
+  hadc1.Init.LowPowerAutoWait = DISABLE;
+  hadc1.Init.ContinuousConvMode = ENABLE;
+  hadc1.Init.NbrOfConversion = 1;
+  hadc1.Init.DiscontinuousConvMode = DISABLE;
+  hadc1.Init.ExternalTrigConv = ADC_SOFTWARE_START;
+  hadc1.Init.ExternalTrigConvEdge = ADC_EXTERNALTRIGCONVEDGE_NONE;
+  hadc1.Init.DMAContinuousRequests = DISABLE;
+  hadc1.Init.Overrun = ADC_OVR_DATA_PRESERVED;
+  hadc1.Init.OversamplingMode = DISABLE;
+  if (HAL_ADC_Init(&hadc1) != HAL_OK)
+  {
+    Error_Handler();
+  }
+
+  /** Configure the ADC multi-mode
+  */
+  multimode.Mode = ADC_MODE_INDEPENDENT;
+  if (HAL_ADCEx_MultiModeConfigChannel(&hadc1, &multimode) != HAL_OK)
+  {
+    Error_Handler();
+  }
+
+  /** Configure Regular Channel
+  */
+  sConfig.Channel = ADC_CHANNEL_1;
+  sConfig.Rank = ADC_REGULAR_RANK_1;
+  sConfig.SamplingTime = ADC_SAMPLETIME_2CYCLES_5;
+  sConfig.SingleDiff = ADC_SINGLE_ENDED;
+  sConfig.OffsetNumber = ADC_OFFSET_NONE;
+  sConfig.Offset = 0;
+  if (HAL_ADC_ConfigChannel(&hadc1, &sConfig) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN ADC1_Init 2 */
+
+  /* USER CODE END ADC1_Init 2 */
+
 }
 
 /**
