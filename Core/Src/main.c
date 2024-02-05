@@ -27,21 +27,23 @@
 
 /* Private typedef -----------------------------------------------------------*/
 /* USER CODE BEGIN PTD */
-const int16_t freq_step=100; //step of freq
-const int16_t init_freq=1500;//strtup frequency
-const int8_t enc_step=-4;//+4 or -4//sign is direction of encoder
 int16_t freq;//current frequency
 int8_t mode_iter=3;//синус по-умолчанию
-uint16_t vmeas;//измеренное напряжение (уровень)
-const char*mode0="DSRK"; //see defines in ad9833.h //ВЫКЛ.
-const char*mode1="NHTEU"; //see defines in ad9833.h //ТРЕУГОЛЬНЫЙ
+float vmeas;//измеренное напряжение (уровень)
+float vmeas_prev; //previous vmeas for filter
+const char*mode0="DSRK"; //see defines in ad9833.h //ВЫКЛ
+const char*mode1="NHTEU"; //see defines in ad9833.h //ТРЕУГ
 const char*mode2="VTFYLH"; //see defines in ad9833.h //МЕАНДР
-const char*mode3="CBYEC"; //see defines in ad9833.h //С�?НУС
-
+const char*mode3="CBYEC"; //see defines in ad9833.h //СИНУС
 /* USER CODE END PTD */
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
+#define freq_step 100 //step of freq
+#define init_freq 1500//strtup frequency
+#define enc_step -4//+4 or -4//sign is direction of encoder
+#define filter_coef 8//value of filtering
+#define adc_mv_recalc 4.5//value of filtering
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -116,9 +118,14 @@ void ad_set_mode(uint8_t m){
 void loop(){
 	//start freq set and rendering
 	freq=init_freq+(((int16_t)__HAL_TIM_GET_COUNTER(&htim2))/enc_step)*freq_step;
-	if(freq<0){
+	if(freq<0){	//freq<0 check
 		__HAL_TIM_SET_COUNTER(&htim2, -init_freq/freq_step*enc_step);
 		freq=0;
+	}
+	freq=init_freq+(((int16_t)__HAL_TIM_GET_COUNTER(&htim2))/enc_step)*freq_step;
+	if(freq>30000){	//freq>30000 check
+		__HAL_TIM_SET_COUNTER(&htim2, (30000-init_freq)/freq_step*enc_step);
+		freq=30000;
 	}
 	ad9833_set_frequency(0, freq);
 	OLED_DrawRectangleFill(1,1,128,31,0);
@@ -134,11 +141,13 @@ void loop(){
 	OLED_UpdateOnePage(2);
 	//end freq set and rendering
 	//start output level measuring and rendering
-	HAL_ADC_Start(&hadc1);
-	vmeas=HAL_ADC_GetValue(&hadc1);
-	OLED_DrawRectangleFill(1,50,128,64,0);
+	HAL_ADC_Start(&hadc1); // запускаем преобразование сигнала АЦП
+    vmeas = HAL_ADC_GetValue(&hadc1); // читаем полученное значение в переменную adc
+    vmeas=vmeas_prev+((vmeas-vmeas_prev)/filter_coef); //filtering ADC results
+    vmeas_prev=vmeas;
+    OLED_DrawRectangleFill(1,50,128,64,0);
 	FontSet(Segoe_UI_Rus_12);
-	OLED_DrawNum(vmeas, 1, 50, 1);
+	OLED_DrawNum((vmeas*adc_mv_recalc), 1, 50, 1);
 	OLED_DrawStr("vD", 45, 50, 1);
 	OLED_UpdateOnePage(6);
 	OLED_UpdateOnePage(7);
@@ -184,9 +193,8 @@ int main(void)
   oled_init();
   ad_init();
   ad_set_mode(mode_iter);
-  //HAL_ADCEx_Calibration_Start(&hadc1);//debug
-  HAL_ADC_Start(&hadc1);
   HAL_Delay(100);
+  HAL_ADCEx_Calibration_Start(&hadc1,1);
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -278,7 +286,7 @@ static void MX_ADC1_Init(void)
   hadc1.Init.ScanConvMode = ADC_SCAN_DISABLE;
   hadc1.Init.EOCSelection = ADC_EOC_SINGLE_CONV;
   hadc1.Init.LowPowerAutoWait = DISABLE;
-  hadc1.Init.ContinuousConvMode = ENABLE;
+  hadc1.Init.ContinuousConvMode = DISABLE;
   hadc1.Init.NbrOfConversion = 1;
   hadc1.Init.DiscontinuousConvMode = DISABLE;
   hadc1.Init.ExternalTrigConv = ADC_SOFTWARE_START;

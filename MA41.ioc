@@ -1,12 +1,15 @@
 #MicroXplorer Configuration settings - do not modify
-ADC1.Channel-1\#ChannelRegularConversion=ADC_CHANNEL_1
+ADC1.Channel-8\#ChannelRegularConversion=ADC_CHANNEL_1
 ADC1.CommonPathInternal=null|null|null|null
-ADC1.ContinuousConvMode=ENABLE
-ADC1.IPParameters=Rank-1\#ChannelRegularConversion,master,Channel-1\#ChannelRegularConversion,SamplingTime-1\#ChannelRegularConversion,OffsetNumber-1\#ChannelRegularConversion,NbrOfConversionFlag,ContinuousConvMode,CommonPathInternal
+ADC1.ContinuousConvMode=DISABLE
+ADC1.EOCSelection=ADC_EOC_SINGLE_CONV
+ADC1.EnableRegularConversion=ENABLE
+ADC1.IPParameters=ContinuousConvMode,master,EOCSelection,EnableRegularConversion,Overrun,Rank-8\#ChannelRegularConversion,Channel-8\#ChannelRegularConversion,SamplingTime-8\#ChannelRegularConversion,OffsetNumber-8\#ChannelRegularConversion,NbrOfConversionFlag,CommonPathInternal
 ADC1.NbrOfConversionFlag=1
-ADC1.OffsetNumber-1\#ChannelRegularConversion=ADC_OFFSET_NONE
-ADC1.Rank-1\#ChannelRegularConversion=1
-ADC1.SamplingTime-1\#ChannelRegularConversion=ADC_SAMPLETIME_2CYCLES_5
+ADC1.OffsetNumber-8\#ChannelRegularConversion=ADC_OFFSET_NONE
+ADC1.Overrun=ADC_OVR_DATA_PRESERVED
+ADC1.Rank-8\#ChannelRegularConversion=1
+ADC1.SamplingTime-8\#ChannelRegularConversion=ADC_SAMPLETIME_2CYCLES_5
 ADC1.master=1
 CAD.formats=
 CAD.pinconfig=
