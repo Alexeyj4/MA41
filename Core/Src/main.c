@@ -28,19 +28,27 @@
 /* Private typedef -----------------------------------------------------------*/
 /* USER CODE BEGIN PTD */
 int16_t freq;//current frequency
-int8_t mode_iter=3;//синус по-умолчанию
+int16_t prev_freq;//previous frequency
+
+uint8_t eeprom_freq[2];//for read/write eeprom
+uint8_t mode_iter[1]={3};//синус по-умолчанию
 float vmeas;//измеренное напряжение (уровень)
 float vmeas_prev; //previous vmeas for filter
 const char*mode0="DSRK"; //see defines in ad9833.h //ВЫКЛ
 const char*mode1="NHTEU"; //see defines in ad9833.h //ТРЕУГ
 const char*mode2="VTFYLH"; //see defines in ad9833.h //МЕАНДР
 const char*mode3="CBYEC"; //see defines in ad9833.h //СИНУС
+
+uint16_t devAddr = (0x50 << 1); // HAL expects address to be shifted one bit to the left
+uint16_t memAddr = 0x0100;
+uint16_t init_freq;//startup frequency
+HAL_StatusTypeDef status;
+
 /* USER CODE END PTD */
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
 #define freq_step 100 //step of freq
-#define init_freq 1500//strtup frequency
 #define enc_step -4//+4 or -4//sign is direction of encoder
 #define filter_coef 8//value of filtering
 #define adc_mv_recalc 4.5//value of filtering
@@ -89,7 +97,7 @@ void oled_init(){
 
 void ad_init(){
 	ad9833_init();
-	ad9833_set_frequency(0, init_freq);
+	ad9833_set_frequency(0, freq);
 	ad9833_set_freq_out(0);
 }
 
@@ -118,8 +126,20 @@ void ad_set_mode(uint8_t m){
 void loop(){
 	//start freq set and rendering
 	freq=init_freq+(((int16_t)__HAL_TIM_GET_COUNTER(&htim2))/enc_step)*freq_step;
+	if(freq!=prev_freq){
+		prev_freq=freq;
+		eeprom_freq[0]=freq&0xFF;//low byte
+		eeprom_freq[1]=freq>>8;//high byte
+		HAL_I2C_Mem_Write(&hi2c2, devAddr, memAddr+2, I2C_MEMADD_SIZE_16BIT, eeprom_freq, 2, HAL_MAX_DELAY);
+		for(;;) { // wait...
+			status = HAL_I2C_IsDeviceReady(&hi2c2, devAddr, 1, HAL_MAX_DELAY);
+			if(status == HAL_OK)
+				break;
+		}
+	}
 	if(freq<0){	//freq<0 check
 		__HAL_TIM_SET_COUNTER(&htim2, -init_freq/freq_step*enc_step);
+		init_freq=0;
 		freq=0;
 	}
 	freq=init_freq+(((int16_t)__HAL_TIM_GET_COUNTER(&htim2))/enc_step)*freq_step;
@@ -132,9 +152,15 @@ void loop(){
 	FontSet(BigNumbers);
 	OLED_DrawNum(freq, 1, 1, 1);
 	if(HAL_GPIO_ReadPin(GPIOC, GPIO_PIN_1)==0){
-		mode_iter++;
-		if(mode_iter>3)mode_iter=0;
-		ad_set_mode(mode_iter);
+		mode_iter[0]++;
+		if(mode_iter[0]>3)mode_iter[0]=0;
+		ad_set_mode(mode_iter[0]);
+		HAL_I2C_Mem_Write(&hi2c2, devAddr, memAddr, I2C_MEMADD_SIZE_16BIT, mode_iter, 1, HAL_MAX_DELAY);
+		for(;;) { // wait...
+			status = HAL_I2C_IsDeviceReady(&hi2c2, devAddr, 1, HAL_MAX_DELAY);
+			if(status == HAL_OK)
+				break;
+		}
 	}
 	OLED_UpdateOnePage(0);
 	OLED_UpdateOnePage(1);
@@ -190,9 +216,14 @@ int main(void)
   MX_ADC1_Init();
   /* USER CODE BEGIN 2 */
   HAL_TIM_Encoder_Start(&htim2, TIM_CHANNEL_ALL);
+
+  HAL_I2C_Mem_Read(&hi2c2, devAddr, memAddr, I2C_MEMADD_SIZE_16BIT, mode_iter, 1, HAL_MAX_DELAY);
+  HAL_I2C_Mem_Read(&hi2c2, devAddr, memAddr+2, I2C_MEMADD_SIZE_16BIT, eeprom_freq, 2, HAL_MAX_DELAY);
+  init_freq=eeprom_freq[1]*256+eeprom_freq[0];
+
   oled_init();
   ad_init();
-  ad_set_mode(mode_iter);
+  ad_set_mode(mode_iter[0]);
   HAL_Delay(100);
   HAL_ADCEx_Calibration_Start(&hadc1,1);
   /* USER CODE END 2 */
